@@ -57,8 +57,6 @@ const iconSunMobile   = document.getElementById('iconSunMobile');
 const iconMoonMobile  = document.getElementById('iconMoonMobile');
 const bottomNavLinks  = document.querySelectorAll('.bottom-nav-link');
 const inputHint       = document.getElementById('inputHint');
-const hexShortcuts    = document.getElementById('hexShortcuts');
-const hexButtons      = document.querySelectorAll('.btn-hex');
 
 // ============================================================
 // 2. VALIDASI INPUT
@@ -182,14 +180,12 @@ function updateInputAttributesForBase() {
     }
   }
 
-  // Jika Heksadesimal: buka keyboard teks penuh di mobile dan tampilkan tombol cepat A-F
+  // Jika Heksadesimal: gunakan keyboard teks agar pengguna dapat mengetik angka & huruf A-F
   if (base === 16) {
     inputNumber.setAttribute('inputmode', 'text');
-    if (hexShortcuts) hexShortcuts.style.display = 'flex';
   } else {
-    // Basis 2, 8, 10: keypad numerik di mobile dan sembunyikan tombol hex
+    // Basis 2, 8, 10: keypad numerik
     inputNumber.setAttribute('inputmode', 'numeric');
-    if (hexShortcuts) hexShortcuts.style.display = 'none';
   }
 
   // Bersihkan nilai input yang ada jika tidak sesuai dengan basis yang baru dipilih
@@ -1194,35 +1190,6 @@ fromBaseSelect.addEventListener('change', function() {
 // Perubahan basis tujuan → sembunyikan error lama jika ada
 toBaseSelect.addEventListener('change', function() {
   hideError();
-});
-
-// Tombol cepat huruf heksadesimal (A, B, C, D, E, F)
-hexButtons.forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
-    e.preventDefault();
-    const char = this.getAttribute('data-hex');
-    if (!char) return;
-
-    const start = inputNumber.selectionStart !== null ? inputNumber.selectionStart : inputNumber.value.length;
-    const end = inputNumber.selectionEnd !== null ? inputNumber.selectionEnd : inputNumber.value.length;
-    const val = inputNumber.value;
-
-    // Sisipkan huruf hex pada posisi kursor
-    inputNumber.value = val.substring(0, start) + char + val.substring(end);
-    const newPos = start + char.length;
-    inputNumber.focus();
-    try {
-      inputNumber.setSelectionRange(newPos, newPos);
-    } catch (err) {}
-
-    // Picu event input untuk sinkronisasi state
-    inputNumber.dispatchEvent(new Event('input', { bubbles: true }));
-
-    // Sembunyikan error jika sebelumnya ada
-    if (errorBox.classList.contains('visible')) {
-      hideError();
-    }
-  });
 });
 
 // Dark mode toggle (Desktop & Mobile)
