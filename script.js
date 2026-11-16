@@ -56,6 +56,9 @@ const btnThemeMobile  = document.getElementById('btnThemeMobile');
 const iconSunMobile   = document.getElementById('iconSunMobile');
 const iconMoonMobile  = document.getElementById('iconMoonMobile');
 const bottomNavLinks  = document.querySelectorAll('.bottom-nav-link');
+const inputHint       = document.getElementById('inputHint');
+const hexShortcuts    = document.getElementById('hexShortcuts');
+const hexButtons      = document.querySelectorAll('.btn-hex');
 
 // ============================================================
 // 2. VALIDASI INPUT
@@ -141,14 +144,15 @@ function sanitizeInputForBase(value, base) {
   } else if (base === 10) {
     cleaned = cleaned.replace(/[^0-9]/g, '');
   } else if (base === 16) {
-    cleaned = cleaned.toUpperCase().replace(/[^0-9A-F]/g, '');
+    // Pada Heksadesimal: izinkan angka 0-9 dan huruf a-f / A-F
+    cleaned = cleaned.replace(/[^0-9a-fA-F]/g, '');
   }
 
   return (isNegative ? '-' : '') + cleaned;
 }
 
 /**
- * Memperbarui placeholder, inputmode, dan membersihkan input saat basis asal berubah.
+ * Memperbarui placeholder, inputmode, petunjuk, dan tombol huruf saat basis asal berubah.
  */
 function updateInputAttributesForBase() {
   const base = parseInt(fromBaseSelect.value);
@@ -159,13 +163,33 @@ function updateInputAttributesForBase() {
     16: 'cth. 2A3, -FF'
   };
 
+  const hints = {
+    2:  'Hanya angka 0 dan 1',
+    8:  'Hanya angka 0–7',
+    10: 'Hanya angka 0–9',
+    16: 'Angka 0–9 & Huruf A–F aktif'
+  };
+
   inputNumber.placeholder = placeholders[base] || 'Masukkan angka';
 
-  // Pada mobile: gunakan keypad numerik untuk basis 2, 8, 10
+  // Perbarui petunjuk visual di atas input
+  if (inputHint) {
+    inputHint.textContent = hints[base] || '';
+    if (base === 16) {
+      inputHint.classList.add('hex-mode');
+    } else {
+      inputHint.classList.remove('hex-mode');
+    }
+  }
+
+  // Jika Heksadesimal: buka keyboard teks penuh di mobile dan tampilkan tombol cepat A-F
   if (base === 16) {
     inputNumber.setAttribute('inputmode', 'text');
+    if (hexShortcuts) hexShortcuts.style.display = 'flex';
   } else {
+    // Basis 2, 8, 10: keypad numerik di mobile dan sembunyikan tombol hex
     inputNumber.setAttribute('inputmode', 'numeric');
+    if (hexShortcuts) hexShortcuts.style.display = 'none';
   }
 
   // Bersihkan nilai input yang ada jika tidak sesuai dengan basis yang baru dipilih
@@ -845,13 +869,25 @@ function handleConvert() {
     `;
     item.title = 'Klik untuk menyalin';
     item.addEventListener('click', function() {
-      navigator.clipboard.writeText(val);
-      const labelEl = item.querySelector('.grid-item-label');
-      const origText = BASE_NAMES[b];
-      labelEl.textContent = 'Tersalin!';
-      setTimeout(function() {
-        labelEl.textContent = origText;
-      }, 1200);
+      function showGridCopied() {
+        const labelEl = item.querySelector('.grid-item-label');
+        if (!labelEl) return;
+        const origText = BASE_NAMES[b];
+        labelEl.textContent = 'Tersalin!';
+        setTimeout(function() {
+          labelEl.textContent = origText;
+        }, 1200);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(val).then(showGridCopied).catch(function() {
+          fallbackCopy(val);
+          showGridCopied();
+        });
+      } else {
+        fallbackCopy(val);
+        showGridCopied();
+      }
     });
     resultsGrid.appendChild(item);
   });
@@ -891,6 +927,15 @@ function swapBases() {
   const temp = fromBaseSelect.value;
   fromBaseSelect.value = toBaseSelect.value;
   toBaseSelect.value = temp;
+
+  // Animasi rotasi tombol swap
+  if (btnSwap) {
+    btnSwap.classList.add('rotating');
+    setTimeout(function() {
+      btnSwap.classList.remove('rotating');
+    }, 350);
+  }
+
   updateInputAttributesForBase();
   hideError();
 }
@@ -1019,6 +1064,7 @@ function renderHistory() {
       inputNumber.value = val;
       fromBaseSelect.value = from;
       toBaseSelect.value = to;
+      updateInputAttributesForBase();
       handleConvert();
       const convSection = document.getElementById('converter');
       if (convSection) {
@@ -1077,8 +1123,8 @@ inputNumber.addEventListener('keydown', function(e) {
     return;
   }
 
-  // Biarkan kombinasi shortcut (Ctrl/Cmd + A, C, V, X, Z)
-  if (e.ctrlKey || e.metaKey || e.altKey) {
+  // Biarkan kombinasi shortcut (Ctrl/Cmd + A, C, V, X, Z) dan komposisi IME
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) {
     return;
   }
 
@@ -1088,9 +1134,11 @@ inputNumber.addEventListener('keydown', function(e) {
     const key = e.key;
     const start = inputNumber.selectionStart;
 
-    // Simbol minus '-': hanya boleh di posisi awal (index 0) dan belum ada '-'
+    // Simbol minus '-': hanya boleh di posisi awal (index 0) dan belum ada '-' di luar seleksi
     if (key === '-') {
-      if (start === 0 && !inputNumber.value.includes('-')) {
+      const hasMinusOutsideSelection = inputNumber.value.includes('-') &&
+        !(inputNumber.selectionStart === 0 && inputNumber.selectionEnd > 0 && inputNumber.value.startsWith('-'));
+      if (start === 0 && !hasMinusOutsideSelection) {
         return; // Izinkan tanda minus di awal
       }
       e.preventDefault();
@@ -1141,6 +1189,40 @@ inputNumber.addEventListener('input', function() {
 fromBaseSelect.addEventListener('change', function() {
   updateInputAttributesForBase();
   hideError();
+});
+
+// Perubahan basis tujuan → sembunyikan error lama jika ada
+toBaseSelect.addEventListener('change', function() {
+  hideError();
+});
+
+// Tombol cepat huruf heksadesimal (A, B, C, D, E, F)
+hexButtons.forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    const char = this.getAttribute('data-hex');
+    if (!char) return;
+
+    const start = inputNumber.selectionStart !== null ? inputNumber.selectionStart : inputNumber.value.length;
+    const end = inputNumber.selectionEnd !== null ? inputNumber.selectionEnd : inputNumber.value.length;
+    const val = inputNumber.value;
+
+    // Sisipkan huruf hex pada posisi kursor
+    inputNumber.value = val.substring(0, start) + char + val.substring(end);
+    const newPos = start + char.length;
+    inputNumber.focus();
+    try {
+      inputNumber.setSelectionRange(newPos, newPos);
+    } catch (err) {}
+
+    // Picu event input untuk sinkronisasi state
+    inputNumber.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Sembunyikan error jika sebelumnya ada
+    if (errorBox.classList.contains('visible')) {
+      hideError();
+    }
+  });
 });
 
 // Dark mode toggle (Desktop & Mobile)
