@@ -48,9 +48,25 @@
       <div class="converter-card">
         
         <div class="input-group">
-          <label for="inputNumber">Masukkan Angka</label>
+          <div class="input-label-row">
+            <label for="inputNumber">Masukkan Angka</label>
+            <span class="input-hint" id="inputHint">Hanya angka 0–9</span>
+          </div>
           <input type="text" id="inputNumber" placeholder="cth. 255, -45"
                  autocomplete="off" spellcheck="false" inputmode="numeric" autofocus>
+
+          <!-- Tombol huruf Hex (A-F) aktif otomatis saat Heksadesimal dipilih -->
+          <div class="hex-shortcuts" id="hexShortcuts" style="display: none;">
+            <span class="hex-shortcuts-label">Huruf Hex:</span>
+            <div class="hex-btn-group">
+              <button type="button" class="btn-hex" data-hex="A">A</button>
+              <button type="button" class="btn-hex" data-hex="B">B</button>
+              <button type="button" class="btn-hex" data-hex="C">C</button>
+              <button type="button" class="btn-hex" data-hex="D">D</button>
+              <button type="button" class="btn-hex" data-hex="E">E</button>
+              <button type="button" class="btn-hex" data-hex="F">F</button>
+            </div>
+          </div>
         </div>
 
         
