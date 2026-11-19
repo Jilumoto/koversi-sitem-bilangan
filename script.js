@@ -195,6 +195,11 @@ function updateInputAttributesForBase() {
       inputNumber.value = cleaned;
     }
   }
+
+  // Sinkronkan tampilan dropdown kustom Persona 5
+  if (typeof window.syncP5Selects === 'function') {
+    window.syncP5Selects();
+  }
 }
 
 // ============================================================
@@ -1202,18 +1207,20 @@ function updateThemeIcons(isDark) {
 
 (function initTheme() {
   const saved = localStorage.getItem('ezzkonversi-theme');
-  if (saved === 'dark') {
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    updateThemeIcons(false);
+  } else {
+    // Default Persona 5 signature dark theme
     document.documentElement.setAttribute('data-theme', 'dark');
     updateThemeIcons(true);
-  } else {
-    updateThemeIcons(false);
   }
 })();
 
 function toggleTheme() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   if (isDark) {
-    document.documentElement.removeAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
     localStorage.setItem('ezzkonversi-theme', 'light');
     updateThemeIcons(false);
   } else {
@@ -1320,16 +1327,314 @@ window.addEventListener('scroll', function() {
     }
   });
 
-  // Navbar shadow on scroll (desktop)
+  // Navbar transparent on desktop
   const navbar = document.getElementById('navbar');
   if (navbar) {
-    if (window.scrollY > 10) {
-      navbar.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
-    } else {
-      navbar.style.boxShadow = 'none';
-    }
+    navbar.style.boxShadow = 'none';
   }
 });
 
 // Inisialisasi atribut input & placeholder sesuai basis default
 updateInputAttributesForBase();
+
+// ============================================================
+// 8. PERSONA 5 AMBIENT: SFX, ANIMATED CURSOR, RANSOM LETTERING
+// ============================================================
+
+/** Memutar efek suara menu Persona 5 */
+function playSelectSFX() {
+  const sfx = document.getElementById('sfx-select');
+  if (!sfx) return;
+  try {
+    // Clone node to allow rapid playback without clipping
+    const clone = sfx.cloneNode(true);
+    clone.volume = 0.45;
+    const p = clone.play();
+    if (p !== undefined) {
+      p.catch(function() {
+        sfx.currentTime = 0;
+        sfx.volume = 0.45;
+        sfx.play().catch(function() {});
+      });
+    }
+  } catch (e) {
+    try {
+      sfx.currentTime = 0;
+      sfx.volume = 0.45;
+      sfx.play().catch(function() {});
+    } catch (err) {}
+  }
+}
+
+// Pasang audio SFX ke seluruh elemen interaktif
+document.addEventListener('click', function(e) {
+  const target = e.target.closest('button, a, select, .grid-item, .history-item, .p5-select-trigger, .p5-option');
+  if (target) {
+    playSelectSFX();
+  }
+});
+
+/** 30-frame animated sprite cursor (Persona 5 style) */
+function initP5Cursor() {
+  function isMobileOrTouch() {
+    return window.innerWidth <= 768 ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+      ('ontouchstart' in window && window.innerWidth <= 1024) ||
+      (navigator.maxTouchPoints > 0 && window.innerWidth <= 1024);
+  }
+
+  const cur = document.getElementById('cursor');
+  if (!cur) return;
+
+  if (isMobileOrTouch()) {
+    cur.style.display = 'none';
+    return;
+  }
+
+  document.body.classList.add('cursor-on');
+  let x = -100, y = -100, frame = 0, last = 0, visible = false;
+
+  // Sembunyikan kursor seketika jika ada interaksi sentuhan (touch)
+  window.addEventListener('touchstart', function() {
+    cur.style.display = 'none';
+    visible = false;
+  }, { passive: true });
+
+  window.addEventListener('mousemove', function(e) {
+    if (isMobileOrTouch()) {
+      cur.style.display = 'none';
+      visible = false;
+      return;
+    }
+    // Abaikan jika event mousemove buatan dari event touch
+    if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) {
+      return;
+    }
+
+    x = e.clientX;
+    y = e.clientY;
+    // Update position immediately — no delay
+    cur.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+    if (!visible) {
+      cur.style.display = 'block';
+      visible = true;
+    }
+    const t = e.target;
+    const overLink = t && t.closest && t.closest('a, button, select, input, .grid-item, .history-item, .p5-select-trigger, .p5-option');
+    cur.classList.toggle('link', !!overLink);
+  }, { passive: true });
+
+  document.documentElement.addEventListener('mouseleave', function() {
+    cur.style.display = 'none';
+    visible = false;
+  });
+
+  window.addEventListener('resize', function() {
+    if (isMobileOrTouch()) {
+      cur.style.display = 'none';
+      visible = false;
+      document.body.classList.remove('cursor-on');
+    } else {
+      document.body.classList.add('cursor-on');
+    }
+  });
+
+  // rAF only handles sprite frame animation (not position — position is instant via mousemove)
+  function tick(ts) {
+    if (ts - last >= 50) { // 50ms per frame
+      frame = (frame + 1) % 30;
+      last = ts;
+      cur.style.backgroundPosition = -frame * 48 + 'px 0';
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/** Render individual element as Persona 5 cut-out ransom letters */
+function renderRansomElement(el, text) {
+  text = text || el.getAttribute('data-ransom') || el.textContent;
+  el.textContent = '';
+  function hash(str) {
+    let h = 9;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 387420489);
+    }
+    return (h ^ h >>> 9) >>> 0;
+  }
+  Array.from(text).forEach(function(c, i) {
+    if (c === ' ') {
+      el.appendChild(document.createTextNode(' '));
+      return;
+    }
+    const span = document.createElement('span');
+    span.className = 'ch';
+    span.textContent = c;
+    const h = hash(text + i);
+    const rot = (h % 15) - 7; // -7..7 deg
+    const scale = 0.92 + ((h >> 3) % 18) / 100;
+    const dy = ((h >> 5) % 7) - 3; // -3..3 px
+    span.style.transform = `rotate(${rot}deg) scale(${scale}) translateY(${dy}px)`;
+
+    const variant = (h >> 7) % 6;
+    if (variant === 0) span.classList.add('box');
+    else if (variant === 1) span.classList.add('boxw');
+    else if (variant === 2) span.classList.add('red');
+    else if (variant === 3) span.classList.add('boxr');
+
+    el.appendChild(span);
+  });
+}
+
+/** Ransom-note cut-out lettering generator for all [data-ransom] */
+function initRansomLettering() {
+  document.querySelectorAll('[data-ransom]').forEach(function(el) {
+    renderRansomElement(el);
+  });
+}
+
+// Inisialisasi cursor & ransom lettering
+initP5Cursor();
+initRansomLettering();
+
+// ============================================================
+// 9. CUSTOM P5 SELECT DROPDOWNS
+// ============================================================
+
+/**
+ * Label mapping untuk setiap nilai basis
+ */
+var BASE_LABELS = { '2': 'BINER', '8': 'OKTAL', '10': 'DESIMAL', '16': 'HEX' };
+
+/**
+ * Inisialisasi custom dropdown Persona 5 untuk fromBase dan toBase.
+ * Keeps hidden <select> elements in sync for the rest of script.js.
+ */
+function initP5Selects() {
+  var configs = [
+    {
+      wrapperId: 'fromBaseWrapper',
+      triggerId: 'fromBaseTrigger',
+      panelId:   'fromBasePanel',
+      currentId: 'fromBaseCurrent',
+      selectId:  'fromBase'
+    },
+    {
+      wrapperId: 'toBaseWrapper',
+      triggerId: 'toBaseTrigger',
+      panelId:   'toBasePanel',
+      currentId: 'toBaseCurrent',
+      selectId:  'toBase'
+    }
+  ];
+
+  configs.forEach(function(cfg) {
+    var wrapper = document.getElementById(cfg.wrapperId);
+    var trigger = document.getElementById(cfg.triggerId);
+    var panel   = document.getElementById(cfg.panelId);
+    var current = document.getElementById(cfg.currentId);
+    var select  = document.getElementById(cfg.selectId);
+    if (!wrapper || !trigger || !panel || !current || !select) return;
+
+    // Open / Close toggle
+    function openPanel() {
+      // Close other open dropdowns first
+      document.querySelectorAll('.p5-select-wrapper.open').forEach(function(w) {
+        if (w !== wrapper) {
+          w.classList.remove('open');
+          var t = w.querySelector('.p5-select-trigger');
+          if (t) t.setAttribute('aria-expanded', 'false');
+        }
+      });
+      wrapper.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    function closePanel() {
+      wrapper.classList.remove('open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+    function togglePanel() {
+      if (wrapper.classList.contains('open')) closePanel();
+      else openPanel();
+    }
+
+    trigger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      playSelectSFX();
+      togglePanel();
+    });
+    trigger.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        playSelectSFX();
+        togglePanel();
+      }
+      if (e.key === 'Escape') closePanel();
+    });
+
+    // Option selection
+    panel.querySelectorAll('.p5-option').forEach(function(opt) {
+      opt.addEventListener('click', function(e) {
+        e.stopPropagation();
+        playSelectSFX();
+        var val = opt.getAttribute('data-value');
+        // Update hidden select
+        select.value = val;
+        // Update trigger display text with ransom lettering
+        var label = BASE_LABELS[val] || val;
+        current.setAttribute('data-ransom', label);
+        renderRansomElement(current, label);
+        // Update active class
+        panel.querySelectorAll('.p5-option').forEach(function(o) {
+          o.classList.remove('p5-option-active');
+        });
+        opt.classList.add('p5-option-active');
+        closePanel();
+        // Fire change event so existing script.js listeners react
+        select.dispatchEvent(new Event('change'));
+      });
+    });
+  });
+
+  // Close all dropdowns when clicking outside
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.p5-select-wrapper.open').forEach(function(w) {
+      w.classList.remove('open');
+      var t = w.querySelector('.p5-select-trigger');
+      if (t) t.setAttribute('aria-expanded', 'false');
+    });
+  });
+
+  // Keep custom dropdowns in sync when script.js programmatically changes select values
+  // (e.g. the SWAP button directly sets fromBaseSelect.value / toBaseSelect.value)
+  function syncFromSelect(selectId, currentId, panelId) {
+    var sel = document.getElementById(selectId);
+    var cur = document.getElementById(currentId);
+    var pan = document.getElementById(panelId);
+    if (!sel || !cur || !pan) return;
+    var label = BASE_LABELS[sel.value] || sel.value;
+    cur.setAttribute('data-ransom', label);
+    renderRansomElement(cur, label);
+    pan.querySelectorAll('.p5-option').forEach(function(o) {
+      o.classList.toggle('p5-option-active', o.getAttribute('data-value') === sel.value);
+    });
+  }
+
+  window.syncP5Selects = function() {
+    syncFromSelect('fromBase', 'fromBaseCurrent', 'fromBasePanel');
+    syncFromSelect('toBase', 'toBaseCurrent', 'toBasePanel');
+  };
+
+  // Initial sync so triggers get styled ransom lettering right away
+  window.syncP5Selects();
+
+  // Observe changes on the hidden selects
+  fromBaseSelect.addEventListener('change', function() {
+    syncFromSelect('fromBase', 'fromBaseCurrent', 'fromBasePanel');
+  });
+  toBaseSelect.addEventListener('change', function() {
+    syncFromSelect('toBase', 'toBaseCurrent', 'toBasePanel');
+  });
+}
+
+initP5Selects();
